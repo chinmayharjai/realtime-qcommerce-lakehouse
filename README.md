@@ -9,7 +9,7 @@ Kafka (Redpanda) · Spark Structured Streaming · Databricks · Delta Lake · GC
 
 | # | Milestone | Status |
 |---|-----------|--------|
-| M1 | Kafka + producer | 🚧 |
+| M1 | Kafka + producer | ✅ |
 | M2 | Streaming bronze (exactly-once) | ⬜ |
 | M3 | Streaming silver (watermark, schema evolution, dead-letter) | ⬜ |
 | M4 | Streaming gold + stockout detector | ⬜ |
@@ -17,3 +17,4 @@ Kafka (Redpanda) · Spark Structured Streaming · Databricks · Delta Lake · GC
 | M6 | GCP path (Dataproc + BigQuery) | ⬜ |
 | M7 | Great Expectations + Airflow + runbooks | ⬜ |
 | M8 | ML handoff + final README | ⬜ |
+
