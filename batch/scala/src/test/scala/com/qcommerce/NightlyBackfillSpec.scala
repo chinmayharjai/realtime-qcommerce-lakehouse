@@ -31,7 +31,12 @@ class NightlyBackfillSpec extends AnyFunSuite with BeforeAndAfterAll {
 
   // A row: (event_id, event_time, ingest_time, store_id, value)
   private def df(rows: (String, String, String, String, Double)*) = {
-    import spark.implicits._
+    // Bind a local val: `import spark.implicits._` needs a STABLE identifier, and
+    // `spark` is a var (reassigned in beforeAll), so importing off it directly is a
+    // compile error. The local val is stable, which is the idiomatic fix and what
+    // brings the .toDF implicit into scope.
+    val ss = spark
+    import ss.implicits._
     rows.toDF("event_id", "event_time", "ingest_time", "store_id", "value")
   }
 
