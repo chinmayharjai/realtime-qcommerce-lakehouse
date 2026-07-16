@@ -14,9 +14,10 @@ Kafka (Redpanda) · Spark Structured Streaming · Databricks · Delta Lake · GC
 | M3 | Streaming silver (watermark, schema evolution, dead-letter) | ✅ |
 | M4 | Streaming gold + stockout detector | ✅ |
 | M5 | Batch backfill in PySpark AND Scala | ✅ |
-| M6 | GCP path (Dataproc + BigQuery) | ⬜ |
+| M6 | GCP path (Dataproc + BigQuery) | ✅ |
 | M7 | Great Expectations + Airflow + runbooks | ⬜ |
 | M8 | ML handoff + final README | ⬜ |
+
 
 
 
