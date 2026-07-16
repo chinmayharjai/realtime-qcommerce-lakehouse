@@ -81,14 +81,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Set up JDK 17
+      - name: Set up JDK 17 + sbt
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
+          cache: sbt
+      - name: Install sbt
+        # sbt is NOT preinstalled on ubuntu-latest runners (an earlier version of
+        # this workflow assumed it was and failed with "sbt: command not found").
+        # setup-sbt installs it and works with setup-java's cache.
+        uses: sbt/setup-sbt@v1
       - name: Compile and test the Scala backfill
-        # Skips cleanly until the Scala job lands in M5. sbt is preinstalled on the
-        # ubuntu runner.
+        # Skips cleanly if the Scala project is absent (it lands in M5).
         run: |
           if [ -f batch/scala/build.sbt ]; then
             cd batch/scala && sbt -batch test
