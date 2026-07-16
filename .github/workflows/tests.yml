@@ -1,0 +1,97 @@
+name: tests
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+
+  producer:
+    name: producer (event generation)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: pip install pytest==8.3.4
+      - name: Producer tests
+        run: pytest producer/tests -v --tb=short
+
+  spark-streaming:
+    name: Spark transforms (chispa)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: pip install pyspark==3.5.4 delta-spark==3.2.1 chispa==0.10.1 pytest==8.3.4
+      - name: Streaming + batch transform tests
+        # batch/tests lands in M5; collect whichever test dirs exist so this job is
+        # green from M2 and grows as milestones add suites, rather than referencing a
+        # directory that does not exist yet.
+        run: |
+          DIRS=""
+          for d in streaming/tests batch/tests ml_handoff/tests; do
+            [ -d "$d" ] && DIRS="$DIRS $d"
+          done
+          echo "running: $DIRS"
+          pytest $DIRS -v --tb=short
+        env:
+          SPARK_LOCAL_IP: 127.0.0.1
+
+  great-expectations:
+    name: data quality suites
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: pip install great-expectations==1.2.4 pytest==8.3.4
+        # great-expectations pins its own compatible pandas; pinning pandas
+        # separately here made the two conflict (ResolutionImpossible). Let GE
+        # choose the pandas it was tested against.
+      - name: Expectation suite tests
+        # Skips cleanly until the quality/ suites land in M7.
+        run: |
+          if [ -d quality/tests ]; then pytest quality/tests -v --tb=short; else echo "no quality tests yet"; fi
+
+  scala:
+    name: Scala backfill (sbt)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Compile and test the Scala backfill
+        # Skips cleanly until the Scala job lands in M5. sbt is preinstalled on the
+        # ubuntu runner.
+        run: |
+          if [ -f batch/scala/build.sbt ]; then
+            cd batch/scala && sbt -batch test
+          else
+            echo "no Scala project yet"
+          fi
