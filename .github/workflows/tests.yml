@@ -76,6 +76,38 @@ jobs:
         run: |
           if [ -d quality/tests ]; then pytest quality/tests -v --tb=short; else echo "no quality tests yet"; fi
 
+  gcp:
+    name: GCP loader + terraform
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: pip install google-cloud-bigquery==3.27.0 pytest==8.3.4
+      - name: BigQuery loader config tests
+        # Runs the full suite including the SDK-gated tests, since the SDK is
+        # installed here. No GCP credentials needed — these test the LoadJobConfig
+        # construction, not a live load.
+        run: pytest gcp/tests -v --tb=short
+
+      - name: Shellcheck the Dataproc submit script
+        run: |
+          sudo apt-get update && sudo apt-get install -y shellcheck
+          shellcheck gcp/dataproc_submit.sh
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.9.8'
+      - name: Terraform fmt + validate (GCP)
+        working-directory: gcp/terraform
+        run: |
+          terraform fmt -check -recursive
+          terraform init -backend=false -input=false
+          terraform validate -no-color
+
   scala:
     name: Scala backfill (sbt)
     runs-on: ubuntu-latest
