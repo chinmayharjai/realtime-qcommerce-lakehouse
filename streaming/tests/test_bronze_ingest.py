@@ -21,26 +21,35 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 pytest.importorskip("pyspark")
 
-from pyspark.sql import Row  # noqa: E402
 from pyspark.sql import functions as F  # noqa: E402
+from pyspark.sql.types import (BinaryType, IntegerType, LongType, StructField,  # noqa: E402
+                               StructType, TimestampType)
 
 import bronze_ingest as bi  # noqa: E402
+
+# Explicit schema matching Spark's real Kafka source. Required, not optional:
+# createDataFrame from rows would try to infer types, and the timestamp column is
+# all-null in these fixtures, so inference fails with CANNOT_DETERMINE_TYPE. Stating
+# the schema also makes the fixture an accurate stand-in for the real source —
+# key/value are binary, offset is long — which is the whole point of testing against
+# a Kafka-shaped DataFrame rather than a convenient one.
+_KAFKA_SCHEMA = StructType([
+    StructField("key", BinaryType()),
+    StructField("value", BinaryType()),
+    StructField("partition", IntegerType()),
+    StructField("offset", LongType()),
+    StructField("timestamp", TimestampType()),
+])
 
 
 def _kafka_df(spark, values: list[str], keys=None, partition=0, base_offset=0):
     """Build a DataFrame shaped like Spark's Kafka source: key/value are binary."""
     keys = keys or [f"STORE-{i}" for i in range(len(values))]
     rows = [
-        Row(
-            key=keys[i].encode(),
-            value=values[i].encode(),
-            partition=partition,
-            offset=base_offset + i,
-            timestamp=None,
-        )
+        (keys[i].encode(), values[i].encode(), partition, base_offset + i, None)
         for i in range(len(values))
     ]
-    return spark.createDataFrame(rows)
+    return spark.createDataFrame(rows, schema=_KAFKA_SCHEMA)
 
 
 def test_valid_order_parses_all_fields(spark):
