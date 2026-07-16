@@ -45,7 +45,16 @@ jobs:
           cache: pip
       - run: pip install pyspark==3.5.4 delta-spark==3.2.1 chispa==0.10.1 pytest==8.3.4
       - name: Streaming + batch transform tests
-        run: pytest streaming/tests batch/tests -v --tb=short
+        # batch/tests lands in M5; collect whichever test dirs exist so this job is
+        # green from M2 and grows as milestones add suites, rather than referencing a
+        # directory that does not exist yet.
+        run: |
+          DIRS=""
+          for d in streaming/tests batch/tests ml_handoff/tests; do
+            [ -d "$d" ] && DIRS="$DIRS $d"
+          done
+          echo "running: $DIRS"
+          pytest $DIRS -v --tb=short
         env:
           SPARK_LOCAL_IP: 127.0.0.1
 
@@ -58,7 +67,10 @@ jobs:
         with:
           python-version: '3.12'
           cache: pip
-      - run: pip install great-expectations==1.2.4 pandas==2.2.3 pytest==8.3.4
+      - run: pip install great-expectations==1.2.4 pytest==8.3.4
+        # great-expectations pins its own compatible pandas; pinning pandas
+        # separately here made the two conflict (ResolutionImpossible). Let GE
+        # choose the pandas it was tested against.
       - name: Expectation suite tests
         # Skips cleanly until the quality/ suites land in M7.
         run: |
