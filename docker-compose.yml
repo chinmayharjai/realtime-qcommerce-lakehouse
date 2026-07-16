@@ -1,0 +1,97 @@
+# Redpanda (Kafka-compatible) + the order producer.
+#
+# Redpanda rather than the Confluent Kafka + ZooKeeper stack, and the reason is not
+# just "lighter". The classic Kafka demo is a JVM broker, a JVM ZooKeeper, and often
+# a schema registry and a Connect worker — four containers and a minute of startup
+# to stream a few events. Redpanda is a single binary, Kafka-API-compatible, with no
+# ZooKeeper (it uses Raft internally), so the same producer/consumer code runs
+# unchanged while the local footprint is one container that is ready in seconds.
+# Nothing in this project uses a Kafka feature Redpanda lacks.
+#
+# Start:  docker compose up -d
+# Topics: created by the `topic-init` service below, not by hand
+# Console: http://localhost:8080  (Redpanda Console — inspect topics and messages)
+# Produce: docker compose run --rm producer   (or run producer/order_stream.py locally)
+
+services:
+  redpanda:
+    image: redpandadata/redpanda:v24.2.7
+    container_name: qcommerce-redpanda
+    command:
+      - redpanda
+      - start
+      - --smp=1                    # one core: this is a demo, not a benchmark
+      - --memory=1G
+      - --reserve-memory=0M
+      - --overprovisioned          # tells Redpanda it shares the host; disables latency tricks that assume dedicated cores
+      - --node-id=0
+      - --kafka-addr=PLAINTEXT://0.0.0.0:9092,OUTSIDE://0.0.0.0:19092
+      - --advertise-kafka-addr=PLAINTEXT://redpanda:9092,OUTSIDE://localhost:19092
+      # Two listeners on purpose. `redpanda:9092` is how other containers reach the
+      # broker (by service name, over the compose network). `localhost:19092` is how
+      # a producer running on the host reaches it. A single listener advertising
+      # `redpanda:9092` would work container-to-container and fail from the host,
+      # because `redpanda` does not resolve there — the most common "works in Docker,
+      # not from my laptop" Kafka error.
+    ports:
+      - "19092:19092"   # Kafka API, from the host
+      - "9644:9644"     # admin API
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -q 'Healthy:.*true'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    volumes:
+      - redpanda-data:/var/lib/redpanda/data
+
+  console:
+    image: redpandadata/console:v2.7.2
+    container_name: qcommerce-console
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_BROKERS: redpanda:9092
+
+  topic-init:
+    # Creates the three topics with deliberate partition and retention settings,
+    # rather than letting them be auto-created on first produce. Auto-created topics
+    # get the broker default (one partition, default retention), and a one-partition
+    # topic caps consumer parallelism at one forever — a scaling ceiling baked in by
+    # an omission. Creating them explicitly makes the partitioning a decision.
+    image: redpandadata/redpanda:v24.2.7
+    container_name: qcommerce-topic-init
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        rpk topic create orders           --brokers redpanda:9092 -p 6 -r 1 -c retention.ms=604800000
+        rpk topic create inventory_updates --brokers redpanda:9092 -p 3 -r 1 -c retention.ms=604800000
+        rpk topic create delivery_status   --brokers redpanda:9092 -p 3 -r 1 -c retention.ms=604800000
+        rpk topic list --brokers redpanda:9092
+        # orders gets 6 partitions (the high-volume topic, ~35 of 50 events/sec);
+        # inventory and delivery get 3 each. Partition count is the unit of consumer
+        # parallelism, so it is sized to the topic's share of traffic. Keyed by
+        # store_id downstream, so a store's events stay ordered within a partition.
+
+  producer:
+    build: ./producer
+    container_name: qcommerce-producer
+    depends_on:
+      topic-init:
+        condition: service_completed_successfully
+    environment:
+      KAFKA_BOOTSTRAP: redpanda:9092
+      EVENTS_PER_SEC: "50"
+    # Not started by `up` (no restart policy, exits when done). Run on demand:
+    #   docker compose run --rm producer --duration 300
+    profiles: ["manual"]
+
+volumes:
+  redpanda-data:
