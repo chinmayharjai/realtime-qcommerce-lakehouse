@@ -24,8 +24,22 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 pytest.importorskip("pyspark")
 
 from pyspark.sql import functions as F  # noqa: E402
+from pyspark.sql.types import (DoubleType, IntegerType, StringType,  # noqa: E402
+                               StructField, StructType)
 
 import silver_clean as sc  # noqa: E402
+
+# Explicit schema so a test overriding a field to None (e.g. event_id=None) does not
+# leave an all-null column that createDataFrame cannot infer (CANNOT_DETERMINE_TYPE).
+_ORDER_SCHEMA = StructType([
+    StructField("event_id", StringType()),
+    StructField("event_time", StringType()),
+    StructField("store_id", StringType()),
+    StructField("order_id", StringType()),
+    StructField("order_value", DoubleType()),
+    StructField("line_count", IntegerType()),
+    StructField("status", StringType()),
+])
 
 
 def _order(spark, **overrides):
@@ -34,7 +48,8 @@ def _order(spark, **overrides):
         "order_id": "ORD-1", "order_value": 249.5, "line_count": 2, "status": "placed",
     }
     base.update(overrides)
-    return spark.createDataFrame([base])
+    row = tuple(base[f.name] for f in _ORDER_SCHEMA.fields)
+    return spark.createDataFrame([row], schema=_ORDER_SCHEMA)
 
 
 # --- Validation split -------------------------------------------------------
