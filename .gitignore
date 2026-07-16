@@ -1,0 +1,48 @@
+# Generated data & Delta tables — regenerate by running the pipeline
+data/
+spark-warehouse/
+_delta_log/
+*.parquet
+checkpoints/
+
+# ...but keep the producer's manifest — evidence behind the README numbers.
+!data/_manifest.json
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+
+# Scala / sbt
+target/
+project/target/
+project/project/
+.bloop/
+.metals/
+.bsp/
+*.class
+
+# Spark
+metastore_db/
+derby.log
+
+# GCP — never commit service-account keys
+*.json.key
+gcp-key.json
+service-account*.json
+.terraform/
+*.tfstate
+*.tfstate.*
+
+# Secrets
+.env
+*.pem
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

@@ -1,0 +1,15 @@
+# Producer + streaming
+confluent-kafka==2.6.1
+pyspark==3.5.4
+delta-spark==3.2.1
+
+# Data quality
+great-expectations==1.2.4
+
+# GCP
+google-cloud-bigquery==3.27.0
+google-cloud-storage==2.19.0
+
+# Testing
+pytest==8.3.4
+chispa==0.10.1
